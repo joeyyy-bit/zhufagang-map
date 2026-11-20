@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>竹筏港水道古今路線故事地圖 | 台江歷史水文與聚落變遷</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <!-- Google Fonts: Noto Serif TC & Noto Sans TC -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;700&display=swap" rel="stylesheet" />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Noto Sans TC"', 'sans-serif'],
+            serif: ['"Noto Serif TC"', 'serif'],
+          },
+          colors: {
+            taijiang: {
+              sand: '#F6F3EB',
+              parchment: '#EFE9DA',
+              earth: '#6E5A44',
+              darkEarth: '#3E3226',
+              water: '#1E6B7B',
+              deepWater: '#124652',
+              lagoon: '#3B8EA5',
+              mangrove: '#4A6B53',
+              amber: '#C47B2B',
+              rust: '#A64B2A',
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      background-color: #F6F3EB;
+      color: #3E3226;
+    }
+    #map {
+      width: 100%;
+      height: 100%;
+      z-index: 10;
+    }
+    /* Custom scrollbar for sidebar */
+    .custom-scroll::-webkit-scrollbar {
+      width: 6px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: #EFE9DA;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: #B8A994;
+      border-radius: 9999px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb:hover {
+      background: #6E5A44;
+    }
+    /* Leaflet popup aesthetic */
+    .leaflet-popup-content-wrapper {
+      background-color: #F6F3EB;
+      color: #3E3226;
+      border: 1px solid #D5C8B4;
+      border-radius: 12px;
+      box-shadow: 0 10px 25px -5px rgba(62, 50, 38, 0.25);
+    }
+    .leaflet-popup-tip {
+      background-color: #F6F3EB;
+    }
+    .leaflet-popup-content {
+      margin: 12px 14px;
+      line-height: 1.5;
+    }
+    /* Custom Marker Pin */
+    .custom-pin {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 9999px;
+      color: #fff;
+      border: 2.5px solid #F6F3EB;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.35);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .custom-pin:hover, .custom-pin.active-pin {
+      transform: scale(1.25);
+      box-shadow: 0 0 0 4px rgba(196, 123, 43, 0.45), 0 4px 12px rgba(0,0,0,0.4);
+      z-index: 999 !important;
+    }
+    /* Pulse animation for active era nodes */
+    @keyframes ringPulse {
+      0% { box-shadow: 0 0 0 0 rgba(196, 123, 43, 0.65); }
+      70% { box-shadow: 0 0 0 10px rgba(196, 123, 43, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(196, 123, 43, 0); }
+    }
+    .era-highlight-pin {
+      animation: ringPulse 2.2s infinite;
+    }
+  </style>
+</head>
+<body class="flex flex-col h-screen overflow-hidden font-sans">
+
+  <!-- 頂部標題與時代時間軸列 -->
+  <header class="bg-taijiang-darkEarth text-taijiang-sand shadow-md z-30 shrink-0 border-b border-taijiang-earth">
+    <div class="max-w-full px-4 py-2.5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2">
+      <!-- 標題區 -->
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-lg bg-taijiang-water flex items-center justify-center text-taijiang-sand shadow-inner shrink-0">
+            <i class="fa-solid fa-water text-lg"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <h1 class="font-serif text-base sm:text-lg md:text-xl font-bold tracking-wide text-amber-100">
+                竹筏港水道古今路線故事地圖
+              </h1>
+              <span class="text-[11px] px-2 py-0.5 rounded-full bg-taijiang-mangrove text-white font-medium">
+                台江國家公園歷史水文
+              </span>
+            </div>
+            <p class="text-xs text-stone-300 hidden sm:block">
+              從七股國聖港至安平四草湖：清代至現代約 20 公里水路變遷與人文記憶
+            </p>
+          </div>
+        </div>
+        <!-- 手機版側邊欄切換按鈕 -->
+        <button id="mobileSidebarToggle" class="lg:hidden px-3 py-1.5 rounded-lg bg-taijiang-earth text-xs font-medium flex items-center gap-1.5 hover:bg-taijiang-amber transition">
+          <i class="fa-solid fa-book-open"></i>
+          <span>導覽面板</span>
+        </button>
+      </div>
+
+      <!-- 年代演變時間軸切換器 -->
+      <div class="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0 no-scrollbar" id="eraTimeline">
+        <button data-era="all" class="era-btn active shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-medium transition bg-taijiang-amber text-white shadow">
+          <i class="fa-solid fa-layer-group mr-1"></i>全覽（古今對照）
+        </button>
+        <button data-era="daoguang" class="era-btn shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-medium transition bg-taijiang-earth/60 text-stone-200 hover:bg-taijiang-earth">
+          清道光 1823–1853 開鑿期
+        </button>
+        <button data-era="xianfeng" class="era-btn shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-medium transition bg-taijiang-earth/60 text-stone-200 hover:bg-taijiang-earth">
+          清咸豐至光緒 1853–1895 稅關鼎盛
+        </button>
+        <button data-era="japanese" class="era-btn shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-medium transition bg-taijiang-earth/60 text-stone-200 hover:bg-taijiang-earth">
+          日治 1895–1945 水利鹽業轉型
+        </button>
+        <button data-era="postwar" class="era-btn shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-medium transition bg-taijiang-earth/60 text-stone-200 hover:bg-taijiang-earth">
+          戰後 1945至今 排水與生態保育
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 主內容區：左側故事與控制面板 + 右側互動地圖 -->
+  <main class="flex-1 flex relative overflow-hidden">
+
+    <!-- 左側互動側邊欄 -->
+    <aside id="sidebar" class="w-full sm:w-[400px] lg:w-[430px] bg-taijiang-sand border-r border-stone-300 flex flex-col z-20 absolute lg:static inset-y-0 left-0 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 shadow-xl lg:shadow-none">
+      
+      <!-- 側邊欄分頁籤 -->
+      <div class="grid grid-cols-3 bg-taijiang-parchment border-b border-stone-300 text-xs font-bold shrink-0">
+        <button class="tab-btn active py-2.5 px-2 border-b-2 border-taijiang-water text-taijiang-deepWater flex items-center justify-center gap-1.5" data-tab="era-info">
+          <i class="fa-solid fa-clock-rotate-left"></i>年代與路線
+        </button>
+        <button class="tab-btn py-2.5 px-2 border-b-2 border-transparent text-taijiang-earth hover:text-taijiang-darkEarth flex items-center justify-center gap-1.5" data-tab="nodes-list">
+          <i class="fa-solid fa-location-dot"></i>沿線 10 大節點
+        </button>
+        <button class="tab-btn py-2.5 px-2 border-b-2 border-transparent text-taijiang-earth hover:text-taijiang-darkEarth flex items-center justify-center gap-1.5" data-tab="layers-legend">
+          <i class="fa-solid fa-map"></i>圖層與圖例
+        </button>
+      </div>
+
+      <!-- 側邊欄可捲動內容 -->
+      <div class="flex-1 overflow-y-auto custom-scroll p-4 space-y-4">
+
+        <!-- 分頁 1：年代功能說明與水路區段解析 -->
+        <section id="tab-era-info" class="tab-panel space-y-4">
+          <!-- 動態年代卡片 -->
+          <div id="eraCard" class="bg-white rounded-xl p-4 border border-stone-200 shadow-sm space-y-3">
+            <!-- 由 JS 動態渲染 -->
+          </div>
+
+          <!-- 四大水路區段結構卡 -->
+          <div class="bg-taijiang-parchment/70 rounded-xl p-3.5 border border-stone-300/80 space-y-2.5">
+            <h3 class="font-serif font-bold text-sm text-taijiang-darkEarth flex items-center gap-2">
+              <i class="fa-solid fa-route text-taijiang-water"></i>
+              竹筏港水道四大地理區段（由北至南）
+            </h3>
+            <div class="space-y-2 text-xs">
+              <div class="bg-white/90 p-2.5 rounded-lg border-l-4 border-amber-600 cursor-pointer hover:bg-amber-50 transition" onclick="flyToSegment('guosheng')">
+                <div class="font-bold text-taijiang-darkEarth flex justify-between">
+                  <span>1. 北竹筏港－國聖港區段（曾文溪以北）</span>
+                  <span class="text-[11px] text-amber-700">已成魚塭</span>
+                </div>
+                <p class="text-stone-600 mt-1">今七股區三股一帶，昔日與國聖港銜接之出海口。戰後闢為約 480 公頃「七股魚塭（美國塭仔）」，古水道痕跡已消失。</p>
+              </div>
+
+              <div class="bg-white/90 p-2.5 rounded-lg border-l-4 border-sky-600 cursor-pointer hover:bg-sky-50 transition" onclick="flyToSegment('tucheng')">
+                <div class="font-bold text-taijiang-darkEarth flex justify-between">
+                  <span>2. 北竹筏港－土城仔區段（曾文溪至鹿耳門溪）</span>
+                  <span class="text-[11px] text-sky-700">現存排水道</span>
+                </div>
+                <p class="text-stone-600 mt-1">今安南區土城西側，由自然溪道疏濬而成、路徑曲折。今轉型為嘉南大圳「溪筏港線之一」（長 2,385 公尺）。</p>
+              </div>
+
+              <div class="bg-white/90 p-2.5 rounded-lg border-l-4 border-rose-600 cursor-pointer hover:bg-rose-50 transition" onclick="flyToSegment('mazugong')">
+                <div class="font-bold text-taijiang-darkEarth flex justify-between">
+                  <span>3. 南竹筏港－媽祖宮區段（鹿耳門溪至四草湖）</span>
+                  <span class="text-[11px] text-rose-700">人工運河/隱溪</span>
+                </div>
+                <p class="text-stone-600 mt-1">清代三郊人工開鑿之筆直運河（長約 1,300 公尺），經本田路一段、港仔寮至四草大道，現多為狹小排水溝或路面下隱溪。</p>
+              </div>
+
+              <div class="bg-white/90 p-2.5 rounded-lg border-l-4 border-teal-600 cursor-pointer hover:bg-teal-50 transition" onclick="flyToSegment('sicao')">
+                <div class="font-bold text-taijiang-darkEarth flex justify-between">
+                  <span>4. 南竹筏港－四草湖區段（南端總匯）</span>
+                  <span class="text-[11px] text-teal-700">諸水匯集處</span>
+                </div>
+                <p class="text-stone-600 mt-1">古台江內海最後遺跡。東南接「舊運河（北幹線）」通往府城五條港，西南為古安平港出海口，日治時期闢為安順鹽場。</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 分頁 2：沿線 10 大遺址與節點清單 -->
+        <section id="tab-nodes-list" class="tab-panel hidden space-y-3">
+          <!-- 分類篩選器 -->
+          <div class="bg-white p-3 rounded-xl border border-stone-200 shadow-sm space-y-2">
+            <div class="text-xs font-bold text-taijiang-earth flex items-center justify-between">
+              <span><i class="fa-solid fa-filter mr-1"></i>節點類型篩選</span>
+              <button id="resetFilterBtn" class="text-[11px] text-taijiang-water hover:underline">顯示全部 (10)</button>
+            </div>
+            <div class="flex flex-wrap gap-1.5" id="categoryFilters">
+              <button data-cat="all" class="cat-btn active px-2.5 py-1 rounded-full text-xs font-medium bg-taijiang-darkEarth text-white">全部</button>
+              <button data-cat="trade" class="cat-btn px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-900 border border-amber-300">
+                <i class="fa-solid fa-scale-balanced mr-1"></i>歷史貿易關卡
+              </button>
+              <button data-cat="belief" class="cat-btn px-2.5 py-1 rounded-full text-xs font-medium bg-rose-100 text-rose-900 border border-rose-300">
+                <i class="fa-solid fa-torii-gate mr-1"></i>治水與民間信仰
+              </button>
+              <button data-cat="industry" class="cat-btn px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-900 border border-emerald-300">
+                <i class="fa-solid fa-industry mr-1"></i>產業與工業遺構
+              </button>
+              <button data-cat="hydro" class="cat-btn px-2.5 py-1 rounded-full text-xs font-medium bg-sky-100 text-sky-900 border border-sky-300">
+                <i class="fa-solid fa-anchor mr-1"></i>水文與交通地標
+              </button>
+            </div>
+          </div>
+
+          <!-- 節點卡片列表 -->
+          <div id="nodesContainer" class="space-y-2.5">
+            <!-- 由 JS 動態生成 -->
+          </div>
+        </section>
+
+        <!-- 分頁 3：圖層開關與圖例說明 -->
+        <section id="tab-layers-legend" class="tab-panel hidden space-y-4">
+          <!-- 底圖切換 -->
+          <div class="bg-white rounded-xl p-3.5 border border-stone-200 shadow-sm space-y-2.5">
+            <h3 class="font-serif font-bold text-sm text-taijiang-darkEarth">
+              <i class="fa-solid fa-earth-asia text-taijiang-water mr-1.5"></i>底圖樣式切換
+            </h3>
+            <div class="grid grid-cols-2 gap-2 text-xs">
+              <button id="baseOsmBtn" class="base-btn active py-2 px-3 rounded-lg border-2 border-taijiang-water bg-sky-50 font-bold text-taijiang-deepWater flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-map"></i>標準街道圖
+              </button>
+              <button id="baseSatBtn" class="base-btn py-2 px-3 rounded-lg border border-stone-300 bg-white font-medium text-stone-700 hover:bg-stone-50 flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-satellite"></i>衛星影像圖
+              </button>
+            </div>
+            <p class="text-[11px] text-stone-500">
+              提示：切換至「衛星影像圖」可清楚觀察北段七股魚塭格狀地景、四草湖濕地與現存水圳紋理。
+            </p>
+          </div>
+
+          <!-- 專題圖層開關 -->
+          <div class="bg-white rounded-xl p-3.5 border border-stone-200 shadow-sm space-y-3">
+            <h3 class="font-serif font-bold text-sm text-taijiang-darkEarth">
+              <i class="fa-solid fa-layer-group text-taijiang-water mr-1.5"></i>古今水路與走讀圖層開關
+            </h3>
+
+            <label class="flex items-start gap-2.5 cursor-pointer p-2 rounded-lg hover:bg-stone-50 border border-stone-100">
+              <input type="checkbox" id="toggleAncientLayer" checked class="mt-1 rounded text-taijiang-water focus:ring-taijiang-water" />
+              <div class="text-xs">
+                <div class="font-bold text-taijiang-darkEarth">清代至日治初期古水路圖層</div>
+                <div class="text-stone-500">包含北竹筏港自然溪道、南竹筏港人工運河、四草湖水域、通往府城五條港之舊運河（北幹線）與古安平港出海口。</div>
+              </div>
+            </label>
+
+            <label class="flex items-start gap-2.5 cursor-pointer p-2 rounded-lg hover:bg-stone-50 border border-stone-100">
+              <input type="checkbox" id="toggleModernLayer" checked class="mt-1 rounded text-taijiang-water focus:ring-taijiang-water" />
+              <div class="text-xs">
+                <div class="font-bold text-taijiang-darkEarth">現代排水道與魚塭現況圖層</div>
+                <div class="text-stone-500">標示北段已陸浮開闢之「七股魚塭（美國塭仔）」範圍、嘉南大圳「溪筏港線之一」排水道與媽祖宮隱溪段。</div>
+              </div>
+            </label>
+
+            <label class="flex items-start gap-2.5 cursor-pointer p-2 rounded-lg hover:bg-stone-50 border border-stone-100">
+              <input type="checkbox" id="toggleWalkLayer" class="mt-1 rounded text-taijiang-water focus:ring-taijiang-water" />
+              <div class="text-xs">
+                <div class="font-bold text-taijiang-darkEarth">台江文史走讀建議路線圖層（曾文溪以南）</div>
+                <div class="text-stone-500">依吳建昇教授規劃之安全走讀路線：由台管處南堤出發，經安順鹽場、釐金局分卡、鹿耳門天后宮至北汕尾城隍廟。</div>
+              </div>
+            </label>
+          </div>
+
+          <!-- 地圖線條與圖示圖例 -->
+          <div class="bg-taijiang-parchment rounded-xl p-3.5 border border-stone-300 space-y-2.5 text-xs">
+            <h3 class="font-serif font-bold text-sm text-taijiang-darkEarth">地圖線條與節點圖例</h3>
+            <div class="space-y-1.5">
+              <div class="flex items-center gap-2.5">
+                <span class="w-8 h-1 border-b-4 border-dashed border-amber-600 inline-block"></span>
+                <span>北竹筏港－國聖港段（已消失／化為七股魚塭）</span>
+              </div>
+              <div class="flex items-center gap-2.5">
+                <span class="w-8 h-1 bg-sky-700 inline-block rounded"></span>
+                <span>北竹筏港－土城仔段（現存嘉南大圳排水道）</span>
+              </div>
+              <div class="flex items-center gap-2.5">
+                <span class="w-8 h-1 border-b-4 border-dotted border-rose-600 inline-block"></span>
+                <span>南竹筏港－媽祖宮段（清代人工運河／現為隱溪）</span>
+              </div>
+              <div class="flex items-center gap-2.5">
+                <span class="w-8 h-1 bg-teal-600 inline-block rounded"></span>
+                <span>四草湖水域與舊運河（北幹線往府城五條港）</span>
+              </div>
+              <div class="flex items-center gap-2.5">
+                <span class="w-8 h-1 border-b-2 border-dashed border-purple-700 inline-block"></span>
+                <span>文史走讀建議路線（曾文溪以南段）</span>
+              </div>
+            </div>
+            <hr class="border-stone-300" />
+            <div class="grid grid-cols-2 gap-2 pt-1">
+              <div class="flex items-center gap-2">
+                <span class="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center text-[10px]"><i class="fa-solid fa-scale-balanced"></i></span>
+                <span>歷史貿易關卡</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="w-5 h-5 rounded-full bg-rose-700 text-white flex items-center justify-center text-[10px]"><i class="fa-solid fa-torii-gate"></i></span>
+                <span>治水與民間信仰</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="w-5 h-5 rounded-full bg-emerald-700 text-white flex items-center justify-center text-[10px]"><i class="fa-solid fa-industry"></i></span>
+                <span>產業與工業遺構</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="w-5 h-5 rounded-full bg-sky-700 text-white flex items-center justify-center text-[10px]"><i class="fa-solid fa-anchor"></i></span>
+                <span>水文與交通地標</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- 側邊欄底部快捷工具列 -->
+      <div class="p-2.5 bg-taijiang-parchment border-t border-stone-300 flex items-center justify-between text-xs shrink-0">
+        <button onclick="resetMapView()" class="px-3 py-1.5 rounded-lg bg-white border border-stone-300 text-taijiang-darkEarth font-medium hover:bg-stone-100 transition flex items-center gap-1.5">
+          <i class="fa-solid fa-expand"></i>重置全覽視野
+        </button>
+        <span class="text-[11px] text-stone-600">點擊地圖標記查看詳細史料</span>
+      </div>
+    </aside>
+
+    <!-- 右側地圖容器 -->
+    <div class="flex-1 relative h-full">
+      <div id="map"></div>
+
+      <!-- 地圖右上角浮動快速圖層控制器（方便截圖時快速切換） -->
+      <div class="hidden sm:flex flex-col gap-1.5 absolute top-3 right-3 z-20 bg-taijiang-sand/95 backdrop-blur-sm p-2.5 rounded-xl border border-stone-300 shadow-lg text-xs max-w-[230px]">
+        <div class="font-serif font-bold text-taijiang-darkEarth border-b border-stone-300 pb-1 flex items-center justify-between">
+          <span><i class="fa-solid fa-sliders text-taijiang-water mr-1"></i>快速圖層控制</span>
+          <button id="quickSatBtn" class="text-[11px] px-2 py-0.5 rounded bg-taijiang-water text-white hover:bg-taijiang-deepWater transition">
+            切換衛星圖
+          </button>
+        </div>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" id="quickAncient" checked class="rounded text-taijiang-water" />
+          <span>古水路與舊運河</span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" id="quickModern" checked class="rounded text-taijiang-water" />
+          <span>現代排水與魚塭區</span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" id="quickWalk" class="rounded text-taijiang-water" />
+          <span>文史走讀建議路線</span>
+        </label>
+      </div>
+
+      <!-- 地圖左下角懸浮年代摘要橫幅（截圖放入 StoryMaps 時極具資訊完整性） -->
+      <div id="mapFloatingBanner" class="absolute bottom-3 left-3 right-3 sm:right-auto sm:max-w-md z-20 bg-taijiang-darkEarth/92 text-taijiang-sand backdrop-blur-sm px-3.5 py-2.5 rounded-xl border border-taijiang-earth shadow-lg text-xs">
+        <div class="flex items-center justify-between gap-2 mb-1">
+          <span id="bannerEraBadge" class="px-2 py-0.5 rounded bg-taijiang-amber text-white font-bold text-[11px]">全覽模式</span>
+          <span class="text-[11px] text-stone-300">全長約 20 公里｜七股國聖港 ⇄ 安平四草湖</span>
+        </div>
+        <p id="bannerEraText" class="text-stone-100 leading-relaxed">
+          道光3年（1823）曾文溪改道使台江內海陸浮後，府城三郊疏通並開鑿「竹筏港水道」，串聯國聖港、鹿耳門溪、四草湖與五條港，成為清代中葉至日治初期台江最重要商貿動脈。
+        </p>
+      </div>
+    </div>
+  </main>
+
+  <!-- 頁尾資料來源標註 -->
+  <footer class="bg-taijiang-parchment border-t border-stone-300 px-4 py-1.5 text-[11px] text-taijiang-darkEarth flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 z-30 shrink-0">
+    <div>
+      <strong>資料來源：</strong>吳建昇主持，《台江國家公園歷史水道及其相關設施探查計畫成果報告書》（內政部台江國家公園管理處委託，2021）及南臺科技大學視覺傳達設計系課程研究資料。
+    </div>
+    <div class="text-stone-600 shrink-0">
+      底圖圖資：© OpenStreetMap 貢獻者 / Esri World Imagery
+    </div>
+  </footer>
+
+  <script>
+    // ==========================================
+    // 1. 歷史年代資料庫（整合文獻、歷史事件與功能演變）
+    // ==========================================
+    const ERA_DATA = {
+      all: {
+        badge: '全覽（古今水文空間對照）',
+        title: '從滄海到桑田：竹筏港水道的百年演變',
+        period: '1823 年（清道光3年）至今',
+        summary: '道光3年（1823）曾文溪改道使台江內海陸浮後，府城三郊疏通並開鑿「竹筏港水道」，串聯國聖港、鹿耳門溪、四草湖與五條港，成為清代中葉至日治初期台江最重要商貿動脈。',
+        functions: [
+          '清代中葉：連接國聖港大船與府城五條港的「竹筏／手撐仔」商貿轉運水道。',
+          '清末：釐金徵收、過港費抽收與三郊招募墾民闢建浮覆地魚塭之界線。',
+          '日治時期：逐步轉型為土城仔圳、嘉南大圳給排水線與安順鹽場運鹽水路。',
+          '戰後至今：北段化為七股魚塭與排水溝，南段結合四草濕地轉型為生態與文史走讀場域。'
+        ],
+        events: [
+          '1823、1871、1904、1911 年曾文溪四次大改道，深刻重塑水路與聚落遷徙（「扛厝走溪流」）。',
+          '府城三郊以「萬益館」承管浮覆埔地以抵歲修清淤經費，立「三郊鹿耳門界」碑。',
+          '1994 年四草野生動物保護區劃設與 2009 年台江國家公園成立，開啟歷史水道的當代保育。'
+        ],
+        activeNodeIds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        center: [23.048, 120.118],
+        zoom: 12
+      },
+      daoguang: {
+        badge: '清道光 1823–1853 開鑿期',
+        title: '台江陸浮、國聖港崛起與三郊開鑿運河',
+        period: '清道光3年（1823）至咸豐3年（1853）以前',
+        summary: '1823年曾文溪改道挾帶大量泥沙沖入台江內海，鹿耳門港漸趨淤塞，1841年鴉片戰爭清廷更填石封堵鹿耳門廢口。北方沙線沖刷形成「國聖港（國賽港）」，府城三郊遂雇工疏通自然溪流並開鑿南段運河，打通前往安平與五條港的水路。',
+        functions: [
+          '國聖港成為越洋大商船停泊卸貨處，清廷移設「文武館（文武口）」稽查。',
+          '因大船無法直達府城，商貨改由吃水淺的竹筏與「手撐仔」經竹筏港南下轉運。',
+          '官方將新淤浮埔撥歸三郊「萬益館」免租承管，作為每年歲修疏濬港道之經費補償。'
+        ],
+        events: [
+          '道光3年（1823）7月：曾文溪在安定蘇厝甲潰堤南下，台江內海迅速浮覆成陸埔。',
+          '道光21年（1841）：鴉片戰爭期間，清廷為防英船入侵以石填塞鹿耳門港道。',
+          '道光28年（1848）至咸豐3年（1853）前：三郊完成竹筏港開鑿疏濬，並於浮覆地豎立「三郊鹿耳門界」碑。'
+        ],
+        activeNodeIds: [1, 5, 8, 10],
+        center: [23.045, 120.115],
+        zoom: 12
+      },
+      xianfeng: {
+        badge: '清咸豐至光緒 1853–1895 稅關鼎盛期',
+        title: '釐金關卡、海盜傳奇與大水沖毀古媽祖廟',
+        period: '清咸豐3年（1853）至光緒21年（1895）',
+        summary: '咸豐年間開港通商後，竹筏港成為府城三郊進出口貿易生命線。清廷與三郊在沿線設關抽收「釐金」與「竹排仔通行費」；然而商船雲集也引來駕竹筏行劫的「竹筏仔賊」，同時曾文溪再度改道重創鹿耳門聚落。',
+        functions: [
+          '光緒13年（1887）設「釐金局港仔寮分卡」，逢關納稅、給單照驗放行。',
+          '於港仔寮分卡南側「八角亭」徵收「竹排仔通行費」，支應水道清淤費用。',
+          '三郊職員石時榮等大舉圍築魚塭（如「鼎美塭」），奠定台江沿海養殖地景。'
+        ],
+        events: [
+          '同治10年（1871）7月：曾文溪第二次大改道沖毀鹿耳門古天后宮，催生顯宮與土城兩廟「正統」之爭及「箕水豹」鎮水碑。',
+          '清末「竹筏仔賊（竹排仔賊）」駕輕便竹筏出沒國聖港劫掠商船，留下七股山仔寮龍山宮「賊池（池府千歲）」傳說。',
+          '1860年代《臺灣府港口圖》與 1882 年西方海圖清楚測繪出國聖港至熱蘭遮城間之水道水深。'
+        ],
+        activeNodeIds: [1, 5, 7, 8, 10],
+        center: [23.035, 120.125],
+        zoom: 13
+      },
+      japanese: {
+        badge: '日治 1895–1945 水利與鹽業轉型期',
+        title: '曾文溪築堤治水、嘉南大圳與工業鹽田開發',
+        period: '明治28年（1895）至昭和20年（1945）',
+        summary: '日治初期竹筏港仍稱「鹿耳門運河」並課徵通航稅；但隨著高雄港擴建、1926年臺南運河開通及1936年安平新港闢建，竹筏港航運功能式微，逐步轉型為農田水利排水系統、製鹽運鹽水道與軍用化學工業基地。',
+        functions: [
+          '1920年明治製糖開鑿棋盤式「土城仔圳」，隨後併入嘉南大圳給排水系統。',
+          '1919年日人利用四草湖闢建「安順鹽場」，並設運鹽水道以手撐仔運鹽。',
+          '1938年興建「鐘淵曹達工業株式會社台南工場」與鐘淵鹽田，生產海軍軍用鹼氯原料。'
+        ],
+        events: [
+          '1904、1911年曾文溪兩度改道，十份塭聚落十年內兩度滅村，居民被迫「扛厝走溪流」遷徙。',
+          '1931–1938年興建曾文溪堤岸（含青草崙堤防），終於馴服「青瞑蛇」水患。',
+          '1944–1945年鐘淵曹達工廠遭盟軍轟炸與大雨重創停工。'
+        ],
+        activeNodeIds: [2, 4, 6, 9, 10],
+        center: [23.042, 120.122],
+        zoom: 12
+      },
+      postwar: {
+        badge: '戰後 1945至今 排水與生態保育期',
+        title: '區域排水脈絡、民間信仰與台江國家公園',
+        period: '1945 年戰後至今',
+        summary: '陸路運輸全面取代水運後，竹筏港北段（國聖港段）闢為大型魚塭，土城仔段成為嘉南大圳「溪筏港線之一」排水道，南段（媽祖宮段）淤積為隱溪。沿線則留下鎮港將軍廟等常民信仰，並於四草湖與濕地轉型為國家級生態與文史教育場域。',
+        functions: [
+          '嘉南大圳「溪筏港線之一」排水道（長 2,385 公尺），肩負土城仔聚落區域排水。',
+          '七股三股一帶浮覆地由政府開築為 480 公頃「七股魚塭（美國塭仔）」。',
+          '四草湖與安順鹽場轉型為濕地生態保護區與台江國家公園文化觀光廊道。'
+        ],
+        events: [
+          '1963年土城郭岑寮塭主建立「竹筏港鎮港將軍廟」，安撫港邊陰魂並庇佑虱目魚養殖。',
+          '1982年台鹼安順廠因五氯酚鈉污染事件關廠；1994年劃設「四草野生動物保護區」。',
+          '2009年「台江國家公園」成立，透過文史調查重新串聯竹筏港 20 公里歷史路徑。'
+        ],
+        activeNodeIds: [1, 2, 3, 4, 6, 7, 9, 10],
+        center: [23.045, 120.120],
+        zoom: 12
+      }
+    };
+
+    // ==========================================
+    // 2. 沿線 10 大重要遺址、象徵物與活動節點資料
+    // ==========================================
+    const NODES_DATA = [
+      {
+        id: 1,
+        name: '1. 國聖港遺址（七股三股一帶）',
+        category: 'trade',
+        catLabel: '歷史貿易關卡',
+        eraTag: '清道光–清末',
+        coords: [23.0955, 120.0885],
+        segment: '北竹筏港－國聖港區段',
+        summary: '道光3年（1823）曾文溪改道沖刷形成之新港灣（又作國賽港、郭寨港），範圍約在今七股溪與三股溪之間。',
+        detail: '鹿耳門港淤廢後，國聖港成為越洋大商船停泊集貨之要港，清廷將「文武館（文武口）」移設至此稽查船貨，也是北竹筏港水道的北端起點。清末因曾文溪再度改道淤塞及「竹筏仔賊」出沒而沒落，戰後闢為 480 公頃「七股魚塭（美國塭仔）」。'
+      },
+      {
+        id: 2,
+        name: '2. 北汕尾城隍廟與青草崙堤防',
+        category: 'belief',
+        catLabel: '治水與民間信仰',
+        eraTag: '日治–戰後',
+        coords: [23.0748, 120.1045],
+        segment: '北竹筏港－土城仔區段',
+        summary: '位於曾文溪南岸與青草崙堤防旁，見證先民「扛厝走溪流」躲避「青瞑蛇」水患的集體記憶。',
+        detail: '1904年《臺灣堡圖》顯示此處原為曾文溪口沙汕，1917年後始開墾為魚塭。鄰近的十份塭聚落曾在 1904–1911 年間兩度遭曾文溪改道毀村，居民被迫扛起竹籠茨四散遷徙；直至昭和6年至13年（1931–1938）興建青草崙等曾文溪堤岸後，水患才獲根本控制。'
+      },
+      {
+        id: 3,
+        name: '3. 竹筏港鎮港將軍廟',
+        category: 'belief',
+        catLabel: '治水與民間信仰',
+        eraTag: '戰後 1963',
+        coords: [23.0638, 120.1028],
+        segment: '北竹筏港－土城仔區段（現存段北端起點）',
+        summary: '土城人稱「鎮港仔」，為北竹筏港現存水道北端起點，供奉鎮港大、二、三將軍與大、二姑娘。',
+        detail: '建於 1963 年。源於當地虱目魚塭主郭岑寮五房郭家屢遇家人病痛，經家神江府元帥手轎指示為港邊海上亡靈作祟，遂收其為徒並立「三片壁」小廟奉祀，此後養殖順利；1987年擴建為今日廟貌，展現台江漁村對水路孤魂的敬畏與共生信仰。'
+      },
+      {
+        id: 4,
+        name: '4. 竹筏港橋與城西里崇聖宮',
+        category: 'hydro',
+        catLabel: '水文與交通地標',
+        eraTag: '日治–現代',
+        coords: [23.0568, 120.1088],
+        segment: '北竹筏港－土城仔區段',
+        summary: '跨越現存北竹筏港水道（嘉南大圳溪筏港線之一）的重要地標，鄰近見證土城仔漁村與水利轉型的崇聖宮。',
+        detail: '竹筏港橋下水路即昔日北竹筏港自然溪道，現為長 2,385 公尺的嘉南大圳排水道。西側崇聖宮一帶漁民昔日從事傳統「牽罟」作業，因海埔新生地西移與新式漁船競爭而轉型魚塭；1920年明治製糖亦在此開鑿棋盤式「土城仔圳排水」，成為後來嘉南大圳水路基礎。'
+      },
+      {
+        id: 5,
+        name: '5. 鹿耳門天后宮與「台灣之門」石碑',
+        category: 'belief',
+        catLabel: '治水與民間信仰',
+        eraTag: '明鄭–清同治',
+        coords: [23.0352, 120.1232],
+        segment: '南／北竹筏港交會樞紐',
+        summary: '1661年鄭成功登陸台江之歷史門戶，同治10年（1871）古媽祖廟遭曾文溪洪水沖毀，並出土鎮水「箕水豹」石碑。',
+        detail: '鹿耳門原為北汕尾島北端潮汐口，清代為與大陸對渡之「正港」。1871年曾文溪改道沖毀古廟，後於溪南顯宮建「鹿耳門天后宮」、溪北土城建「正統鹿耳門聖母廟」。周邊出土之「箕水豹」石碑（現藏土城聖母廟）正是先民為鎮壓水患、舉行祭溪儀式所立的重要文化資產。'
+      },
+      {
+        id: 6,
+        name: '6. 原日本鐘淵曹達台南工場宿舍群（台鹼安順廠）',
+        category: 'industry',
+        catLabel: '產業與工業遺構',
+        eraTag: '日治 1938–1982',
+        coords: [23.0338, 120.1268],
+        segment: '南竹筏港－媽祖宮區段',
+        summary: '位於鹿耳門天后宮前與北汕尾二路一帶，為日治時期供應海軍化學武器原料之工廠與鹽田遺構。',
+        detail: '1938年日本鐘淵曹達株式會社在此設廠並開闢 667 甲「鐘淵鹽田」，生產燒鹼、鹽酸與液氯；戰後由台鹼公司接收為安順廠，曾建輕便鐵道連接糖鐵至永康車站，後因生產五氯酚鈉造成嚴重戴奧辛與汞污染，於 1982 年關廠，見證近代工業開發與環境代價。'
+      },
+      {
+        id: 7,
+        name: '7. 釐金局港仔寮分卡與八角亭遺址',
+        category: 'trade',
+        catLabel: '歷史貿易關卡',
+        eraTag: '清光緒 1887–日治初',
+        coords: [23.0258, 120.1328],
+        segment: '南竹筏港－媽祖宮區段',
+        summary: '位於本田路一段與四草大道交會處偏南，為清代抽收商貨釐金與過港費之實際關卡所在。',
+        detail: '一般觀光客常將「四草紅樹林綠色隧道」（日治運鹽水道）尾端誤認為釐金局，但經吳建昇團隊比對 1895 年《安平港口圖》與《臺灣府附近迅速測圖》，確認清光緒13年（1887）設立的「釐金局港仔寮分卡」及南側徵收竹排仔通行費的「八角亭」，實際位於本田路一段與四草大道口南側之古運河堤岸旁。'
+      },
+      {
+        id: 8,
+        name: '8. 三郊鹿耳門界碑（聖母廟界碑）',
+        category: 'trade',
+        catLabel: '歷史貿易關卡',
+        eraTag: '清道光–同治',
+        coords: [23.0485, 120.1265],
+        segment: '竹筏港沿線浮覆墾區',
+        summary: '府城三郊以「萬益館」名義招佃開墾台江浮覆地、建立龐大產業地盤的歷史石碑見證。',
+        detail: '因三郊雇工開挖並連年疏濬竹筏港耗資鉅大，且居民侵墾易致港岸坍塌淤塞，官府遂將新淤浮埔撥歸三郊免租承管以抵歲修經費。三郊於竹筏港周圍廣設「三郊鹿耳門界」碑（如石時榮開築之「鼎美塭」即今湖美、頂美社區由來），現多出土保存於鹿耳門聖母廟等地。'
+      },
+      {
+        id: 9,
+        name: '9. 安順鹽場（鹽田生態文化村）與四草湖',
+        category: 'industry',
+        catLabel: '產業與工業遺構',
+        eraTag: '日治 1919–現代',
+        coords: [23.0235, 120.1432],
+        segment: '南竹筏港－四草湖區段',
+        summary: '古台江內海最後遺跡與諸水匯集之處，1919年闢建為台灣首座瓦盤製鹽工業區，現為重要濕地保護區。',
+        detail: '四草湖昔日匯集竹筏港、本淵寮溪、海尾寮溪與鹽水溪之水。1919年日人築堤闢建土盤採鹵與瓦盤曬鹽田，並開鑿「運鹽水道」（即今四草綠色隧道）供手撐仔運鹽至安平；1994年劃入「四草野生動物保護區」，2009年納入台江國家公園。'
+      },
+      {
+        id: 10,
+        name: '10. 古安平港出海口（台江國家公園管理處南堤）',
+        category: 'hydro',
+        catLabel: '水文與交通地標',
+        eraTag: '荷治–1936',
+        coords: [23.0038, 120.1355],
+        segment: '南竹筏港－四草湖區段南端',
+        summary: '荷治時期稱「大員港」，清代與四草湖合稱「臺灣港」，為竹筏港商貨轉運出海及接駁舊運河之關鍵門戶。',
+        detail: '北汕尾沙洲南端之大員港，歷經荷治、明鄭水師駐防及 1858 年《天津條約》開港通商，見證樟腦戰爭、中法戰爭與乙未戰爭。後因漂砂淤積嚴重，1926年開通臺南運河、1936年另闢安平新港口（今漁光島南側）後，古港道始漸退出歷史舞台。'
+      }
+    ];
+
+    // ==========================================
+    // 3. 水路地理線段座標（依據講義古今疊圖軌跡建構）
+    // ==========================================
+    // (A) 北竹筏港－國聖港區段（曾文溪以北，已消失化為七股魚塭）
+    const PATH_GUOSHENG = [
+      [23.0965, 120.0875],
+      [23.0910, 120.0915],
+      [23.0845, 120.0955],
+      [23.0785, 120.0985]
+    ];
+
+    // (B) 北竹筏港－土城仔區段（曾文溪至鹿耳門溪，現存嘉南大圳溪筏港線之一）
+    const PATH_TUCHENG = [
+      [23.0785, 120.0985],
+      [23.0715, 120.1005],
+      [23.0638, 120.1028], // 鎮港將軍廟
+      [23.0595, 120.1062],
+      [23.0568, 120.1088], // 竹筏港橋
+      [23.0515, 120.1135],
+      [23.0455, 120.1162], // 安清路口
+      [23.0385, 120.1180],
+      [23.0332, 120.1202]  // 匯入鹿耳門溪
+    ];
+
+    // (C) 南竹筏港－媽祖宮區段（鹿耳門溪至四草湖，清代三郊人工運河／現為隱溪與排水道）
+    const PATH_MAZUGONG = [
+      [23.0332, 120.1202], // 鹿耳門溪南水門
+      [23.0308, 120.1235],
+      [23.0282, 120.1285], // 本田路一段、港仔寮鹽夫舍
+      [23.0258, 120.1328], // 釐金局港仔寮分卡與八角亭
+      [23.0225, 120.1375]  // 注入四草湖水域
+    ];
+
+    // (D) 四草湖水域與古安平港出海口連接水道
+    const PATH_SICAO_TO_ANPING = [
+      [23.0225, 120.1375],
+      [23.0185, 120.1365],
+      [23.0125, 120.1378],
+      [23.0045, 120.1355]  // 古安平港出海口（台管處南堤）
+    ];
+
+    // (E) 舊運河（北幹線）：由四草湖東南端通往府城五條港
+    const PATH_OLD_CANAL = [
+      [23.0195, 120.1415],
+      [23.0145, 120.1495],
+      [23.0085, 120.1615],
+      [23.0015, 120.1755],
+      [22.9975, 120.1915]  // 府城五條港方向
+    ];
+
+    // (F) 現代七股魚塭（美國塭仔）近似多邊形範圍
+    const POLY_QIGU_PONDS = [
+      [23.099, 120.083],
+      [23.099, 120.098],
+      [23.081, 120.102],
+      [23.079, 120.088]
+    ];
+
+    // (G) 四草湖古水域近似範圍
+    const POLY_SICAO_LAKE = [
+      [23.025, 120.135],
+      [23.026, 120.146],
+      [23.014, 120.146],
+      [23.006, 120.139],
+      [23.008, 120.133]
+    ];
+
+    // (H) 文史走讀建議路線（曾文溪以南段，依講義規劃）
+    const PATH_WALKING_TOUR = [
+      [23.0038, 120.1355], // 1. 台江國家公園管理處（古安平港）
+      [23.0185, 120.1368], // 四草大眾廟
+      [23.0235, 120.1432], // 2. 安順鹽場（鹽田生態文化村）
+      [23.0258, 120.1328], // 3. 釐金局港仔寮分卡、八角亭遺址
+      [23.0352, 120.1232], // 4. 鹿耳門天后宮
+      [23.0332, 120.1202], // 南竹筏港水門
+      [23.0405, 120.1155], // 跨鹿耳門溪（龍魚橋方向）
+      [23.0455, 120.1162], // 5. 安清路口（北竹筏港排水道）
+      [23.0568, 120.1088], // 竹筏港橋
+      [23.0558, 120.1018], // 6. 城西里崇聖宮
+      [23.0568, 120.1088], // 折返
+      [23.0638, 120.1028], // 7. 竹筏港鎮港將軍廟
+      [23.0748, 120.1045]  // 8. 北汕尾城隍廟（青草崙堤防）
+    ];
+
+    // ==========================================
+    // 4. 初始化 Leaflet 地圖與底圖
+    // ==========================================
+    const map = L.map('map', {
+      center: [23.048, 120.118],
+      zoom: 12,
+      zoomControl: false
+    });
+
+    // 縮放控制按鈕置於右下角（避免被左上/右上卡片遮擋）
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    L.control.scale({ position: 'bottomright', imperial: false }).addTo(map);
+
+    const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap'
+    });
+
+    const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19,
+      attribution: '&copy; Esri World Imagery'
+    });
+
+    osmLayer.addTo(map);
+    let currentBase = 'osm';
+
+    // ==========================================
+    // 5. 建立圖層群組（古水路、現代排水魚塭、走讀路線、節點標記）
+    // ==========================================
+    const ancientLayerGroup = L.layerGroup().addTo(map);
+    const modernLayerGroup = L.layerGroup().addTo(map);
+    const walkingLayerGroup = L.layerGroup(); // 預設關閉，可一鍵開啟
+    const markersLayerGroup = L.layerGroup().addTo(map);
+
+    // --- 繪製古水路圖層 ---
+    L.polygon(POLY_SICAO_LAKE, {
+      color: '#1E6B7B',
+      weight: 1.5,
+      fillColor: '#3B8EA5',
+      fillOpacity: 0.18,
+      dashArray: '4, 4'
+    }).bindPopup('<strong>四草湖古水域（台江內海最後遺跡）</strong><br>清代諸水匯集之處，北接竹筏港、東南接舊運河至府城五條港、西南通古安平港。').addTo(ancientLayerGroup);
+
+    const lineGuosheng = L.polyline(PATH_GUOSHENG, {
+      color: '#D97706',
+      weight: 5,
+      dashArray: '10, 8',
+      opacity: 0.9
+    }).bindPopup('<strong>北竹筏港－國聖港區段（已消失）</strong><br>清代連接國聖港大船泊地之出海段，現已淤積並闢為七股魚塭。').addTo(ancientLayerGroup);
+
+    const lineMazugong = L.polyline(PATH_MAZUGONG, {
+      color: '#E11D48',
+      weight: 5,
+      dashArray: '3, 7',
+      opacity: 0.95
+    }).bindPopup('<strong>南竹筏港－媽祖宮區段（人工運河）</strong><br>清代三郊人工開鑿，長約 1,300 公尺，經港仔寮釐金局分卡注入四草湖，現多為狹小排水溝與路面下隱溪。').addTo(ancientLayerGroup);
+
+    const lineSicaoAnping = L.polyline(PATH_SICAO_TO_ANPING, {
+      color: '#0D9488',
+      weight: 5,
+      opacity: 0.85
+    }).bindPopup('<strong>四草湖至古安平港航道</strong><br>商貨經四草湖向西南可通古安平港（大員港）出海口。').addTo(ancientLayerGroup);
+
+    const lineOldCanal = L.polyline(PATH_OLD_CANAL, {
+      color: '#0F766E',
+      weight: 4.5,
+      dashArray: '8, 6',
+      opacity: 0.85
+    }).bindPopup('<strong>舊運河（北幹線）往府城五條港</strong><br>由四草湖東南端向東延伸，將國聖港與安平轉運之商品送抵府城五條港商貿區。').addTo(ancientLayerGroup);
+
+    // --- 繪製現代排水道與魚塭現況圖層 ---
+    L.polygon(POLY_QIGU_PONDS, {
+      color: '#B45309',
+      weight: 1.5,
+      fillColor: '#F59E0B',
+      fillOpacity: 0.16,
+      dashArray: '5, 5'
+    }).bindPopup('<strong>七股魚塭（當地稱「美國塭仔」）</strong><br>戰後臺南縣政府連同三股溪下游國聖港浮覆地開築之大型魚塭，總面積約 480 公頃，原竹筏港北段已完全融入魚塭地景。').addTo(modernLayerGroup);
+
+    const lineTucheng = L.polyline(PATH_TUCHENG, {
+      color: '#0369A1',
+      weight: 5.5,
+      opacity: 0.92
+    }).bindPopup('<strong>北竹筏港－土城仔區段（現存水圳）</strong><br>原由自然溪道整修而成，日治後期併入嘉南大圳排水系統，現稱「溪筏港線之一」，長 2,385 公尺。').addTo(modernLayerGroup);
+
+    // --- 繪製文史走讀建議路線圖層 ---
+    L.polyline(PATH_WALKING_TOUR, {
+      color: '#7E22CE',
+      weight: 4,
+      dashArray: '6, 6',
+      opacity: 0.9
+    }).bindPopup('<strong>竹筏港文史走讀建議路線（曾文溪以南段）</strong><br>由台江國家公園管理處出發，串聯安順鹽場、釐金局分卡遺址、鹿耳門天后宮、竹筏港橋、崇聖宮、鎮港將軍廟至北汕尾城隍廟。').addTo(walkingLayerGroup);
+
+    // ==========================================
+    // 6. 建立節點標記與分類圖示系統
+    // ==========================================
+    const CATEGORY_STYLES = {
+      trade: { bg: '#D97706', icon: 'fa-scale-balanced', badgeClass: 'bg-amber-100 text-amber-900 border-amber-300' },
+      belief: { bg: '#BE123C', icon: 'fa-torii-gate', badgeClass: 'bg-rose-100 text-rose-900 border-rose-300' },
+      industry: { bg: '#047857', icon: 'fa-industry', badgeClass: 'bg-emerald-100 text-emerald-900 border-emerald-300' },
+      hydro: { bg: '#0369A1', icon: 'fa-anchor', badgeClass: 'bg-sky-100 text-sky-900 border-sky-300' }
+    };
+
+    const markerInstances = {};
+    let currentCategory = 'all';
+    let currentEra = 'all';
+
+    function createCustomMarker(node) {
+      const style = CATEGORY_STYLES[node.category];
+      const iconHtml = `
+        <div id="pin-${node.id}" class="custom-pin" style="background-color: ${style.bg}; width: 32px; height: 32px;">
+          <i class="fa-solid ${style.icon} text-xs"></i>
+        </div>
+      `;
+      const divIcon = L.divIcon({
+        html: iconHtml,
+        className: '',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+        popupAnchor: [0, -16]
+      });
+
+      const popupHtml = `
+        <div class="max-w-[270px] space-y-1.5">
+          <div class="flex items-center justify-between gap-1">
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${style.badgeClass}">${node.catLabel}</span>
+            <span class="text-[10px] text-stone-500 font-medium">${node.eraTag}</span>
+          </div>
+          <h4 class="font-serif font-bold text-sm text-taijiang-darkEarth">${node.name}</h4>
+          <div class="text-[11px] text-taijiang-water font-medium"><i class="fa-solid fa-location-arrow mr-1"></i>${node.segment}</div>
+          <p class="text-xs text-stone-700 leading-relaxed">${node.detail}</p>
+        </div>
+      `;
+
+      const marker = L.marker(node.coords, { icon: divIcon }).bindPopup(popupHtml);
+      marker.on('click', () => {
+        highlightPin(node.id);
+      });
+      return marker;
+    }
+
+    NODES_DATA.forEach(node => {
+      const m = createCustomMarker(node);
+      markerInstances[node.id] = m;
+      m.addTo(markersLayerGroup);
+    });
+
+    function highlightPin(nodeId) {
+      document.querySelectorAll('.custom-pin').forEach(el => el.classList.remove('active-pin'));
+      const target = document.getElementById(`pin-${nodeId}`);
+      if (target) target.classList.add('active-pin');
+    }
+
+    function focusNode(nodeId) {
+      const node = NODES_DATA.find(n => n.id === nodeId);
+      if (!node) return;
+      map.flyTo(node.coords, 15, { duration: 1.1 });
+      const marker = markerInstances[nodeId];
+      if (marker) {
+        if (!markersLayerGroup.hasLayer(marker)) {
+          marker.addTo(markersLayerGroup);
+        }
+        setTimeout(() => {
+          marker.openPopup();
+          highlightPin(nodeId);
+        }, 400);
+      }
+      // 手機版自動收合側邊欄以便觀看地圖
+      if (window.innerWidth < 1024) {
+        document.getElementById('sidebar').classList.add('-translate-x-full');
+      }
+    }
+
+    function flyToSegment(seg) {
+      const views = {
+        guosheng: { coords: [23.088, 120.092], zoom: 14, layer: lineGuosheng },
+        tucheng: { coords: [23.055, 120.110], zoom: 14, layer: lineTucheng },
+        mazugong: { coords: [23.027, 120.130], zoom: 15, layer: lineMazugong },
+        sicao: { coords: [23.014, 120.139], zoom: 14, layer: lineSicaoAnping }
+      };
+      const v = views[seg];
+      if (v) {
+        map.flyTo(v.coords, v.zoom, { duration: 1.1 });
+        setTimeout(() => v.layer.openPopup(), 500);
+        if (window.innerWidth < 1024) {
+          document.getElementById('sidebar').classList.add('-translate-x-full');
+        }
+      }
+    }
+
+    function resetMapView() {
+      map.flyTo([23.048, 120.118], 12, { duration: 1 });
+      map.closePopup();
+    }
+
+    // ==========================================
+    // 7. 渲染年代卡片與節點清單
+    // ==========================================
+    function renderEraCard(eraKey) {
+      const data = ERA_DATA[eraKey];
+      const cardEl = document.getElementById('eraCard');
+      cardEl.innerHTML = `
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-taijiang-water text-white">${data.badge}</span>
+          <span class="text-[11px] text-stone-500">${data.period}</span>
+        </div>
+        <h2 class="font-serif text-base font-bold text-taijiang-darkEarth">${data.title}</h2>
+        <p class="text-xs text-stone-700 leading-relaxed">${data.summary}</p>
+        <div class="pt-1">
+          <div class="text-xs font-bold text-taijiang-deepWater mb-1"><i class="fa-solid fa-compass mr-1"></i>該時期水道功能：</div>
+          <ul class="list-disc list-inside text-xs text-stone-700 space-y-1">
+            ${data.functions.map(f => `<li>${f}</li>`).join('')}
+          </ul>
+        </div>
+        <div class="pt-1">
+          <div class="text-xs font-bold text-taijiang-rust mb-1"><i class="fa-solid fa-landmark mr-1"></i>重要歷史事件與故事：</div>
+          <ul class="list-disc list-inside text-xs text-stone-700 space-y-1">
+            ${data.events.map(e => `<li>${e}</li>`).join('')}
+          </ul>
+        </div>
+        <div class="pt-2 border-t border-stone-200">
+          <div class="text-[11px] font-bold text-stone-600 mb-1.5">該時期重點活躍節點（點擊定位）：</div>
+          <div class="flex flex-wrap gap-1.5">
+            ${data.activeNodeIds.map(id => {
+              const n = NODES_DATA.find(item => item.id === id);
+              return `<button onclick="focusNode(${id})" class="text-[11px] px-2 py-1 rounded bg-taijiang-parchment hover:bg-taijiang-amber hover:text-white text-taijiang-darkEarth font-medium transition">${n.name.split('（')[0]}</button>`;
+            }).join('')}
+          </div>
+        </div>
+      `;
+
+      // 同步更新地圖左下角懸浮橫幅
+      document.getElementById('bannerEraBadge').textContent = data.badge;
+      document.getElementById('bannerEraText').textContent = data.summary;
+    }
+
+    function renderNodesList() {
+      const container = document.getElementById('nodesContainer');
+      const filtered = NODES_DATA.filter(n => currentCategory === 'all' || n.category === currentCategory);
+
+      container.innerHTML = filtered.map(node => {
+        const style = CATEGORY_STYLES[node.category];
+        const isEraActive = ERA_DATA[currentEra].activeNodeIds.includes(node.id);
+        return `
+          <div onclick="focusNode(${node.id})" class="bg-white rounded-xl p-3 border ${isEraActive ? 'border-amber-400 ring-1 ring-amber-200' : 'border-stone-200'} shadow-sm hover:shadow-md hover:border-taijiang-water transition cursor-pointer space-y-1.5">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${style.badgeClass}">
+                <i class="fa-solid ${style.icon} mr-1"></i>${node.catLabel}
+              </span>
+              <span class="text-[10px] text-stone-500">${node.eraTag}</span>
+            </div>
+            <h4 class="font-serif font-bold text-sm text-taijiang-darkEarth">${node.name}</h4>
+            <p class="text-xs text-stone-600 leading-relaxed">${node.summary}</p>
+            <div class="text-[11px] text-taijiang-water font-medium flex items-center justify-between pt-1">
+              <span>${node.segment}</span>
+              <span class="underline">地圖檢視 <i class="fa-solid fa-arrow-right text-[10px]"></i></span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function updateMapMarkersVisibility() {
+      const activeIds = ERA_DATA[currentEra].activeNodeIds;
+      NODES_DATA.forEach(node => {
+        const marker = markerInstances[node.id];
+        const catMatch = (currentCategory === 'all' || node.category === currentCategory);
+        if (catMatch) {
+          if (!markersLayerGroup.hasLayer(marker)) {
+            marker.addTo(markersLayerGroup);
+          }
+          const pinEl = document.getElementById(`pin-${node.id}`);
+          if (pinEl) {
+            if (currentEra !== 'all' && activeIds.includes(node.id)) {
+              pinEl.classList.add('era-highlight-pin');
+              pinEl.style.opacity = '1';
+            } else if (currentEra !== 'all') {
+              pinEl.classList.remove('era-highlight-pin');
+              pinEl.style.opacity = '0.45';
+            } else {
+              pinEl.classList.remove('era-highlight-pin');
+              pinEl.style.opacity = '1';
+            }
+          }
+        } else {
+          markersLayerGroup.removeLayer(marker);
+        }
+      });
+    }
+
+    // ==========================================
+    // 8. 互動事件綁定（時間軸、分頁、圖層、底圖）
+    // ==========================================
+    // 年代切換按鈕
+    document.querySelectorAll('.era-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.era-btn').forEach(b => {
+          b.classList.remove('active', 'bg-taijiang-amber', 'text-white', 'shadow');
+          b.classList.add('bg-taijiang-earth/60', 'text-stone-200');
+        });
+        btn.classList.add('active', 'bg-taijiang-amber', 'text-white', 'shadow');
+        btn.classList.remove('bg-taijiang-earth/60', 'text-stone-200');
+
+        currentEra = btn.dataset.era;
+        renderEraCard(currentEra);
+        renderNodesList();
+        updateMapMarkersVisibility();
+
+        const eraObj = ERA_DATA[currentEra];
+        map.flyTo(eraObj.center, eraObj.zoom, { duration: 1 });
+      });
+    });
+
+    // 側邊欄分頁切換
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => {
+          b.classList.remove('active', 'border-taijiang-water', 'text-taijiang-deepWater');
+          b.classList.add('border-transparent', 'text-taijiang-earth');
+        });
+        btn.classList.add('active', 'border-taijiang-water', 'text-taijiang-deepWater');
+        btn.classList.remove('border-transparent', 'text-taijiang-earth');
+
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+        document.getElementById(`tab-${btn.dataset.tab}`).classList.remove('hidden');
+      });
+    });
+
+    // 節點類型篩選按鈕
+    document.querySelectorAll('.cat-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.cat-btn').forEach(b => {
+          b.classList.remove('active', 'bg-taijiang-darkEarth', 'text-white');
+        });
+        btn.classList.add('active', 'bg-taijiang-darkEarth', 'text-white');
+        currentCategory = btn.dataset.cat;
+        renderNodesList();
+        updateMapMarkersVisibility();
+      });
+    });
+
+    document.getElementById('resetFilterBtn').addEventListener('click', () => {
+      document.querySelector('.cat-btn[data-cat="all"]').click();
+    });
+
+    // 底圖切換（同步側邊欄與地圖右上角按鈕）
+    function setBaseMap(type) {
+      const osmBtn = document.getElementById('baseOsmBtn');
+      const satBtn = document.getElementById('baseSatBtn');
+      const quickSatBtn = document.getElementById('quickSatBtn');
+
+      if (type === 'sat') {
+        map.removeLayer(osmLayer);
+        satelliteLayer.addTo(map);
+        currentBase = 'sat';
+        satBtn.classList.add('border-2', 'border-taijiang-water', 'bg-sky-50', 'font-bold', 'text-taijiang-deepWater');
+        satBtn.classList.remove('border', 'border-stone-300', 'bg-white', 'font-medium', 'text-stone-700');
+        osmBtn.classList.remove('border-2', 'border-taijiang-water', 'bg-sky-50', 'font-bold', 'text-taijiang-deepWater');
+        osmBtn.classList.add('border', 'border-stone-300', 'bg-white', 'font-medium', 'text-stone-700');
+        quickSatBtn.textContent = '切換街道圖';
+      } else {
+        map.removeLayer(satelliteLayer);
+        osmLayer.addTo(map);
+        currentBase = 'osm';
+        osmBtn.classList.add('border-2', 'border-taijiang-water', 'bg-sky-50', 'font-bold', 'text-taijiang-deepWater');
+        osmBtn.classList.remove('border', 'border-stone-300', 'bg-white', 'font-medium', 'text-stone-700');
+        satBtn.classList.remove('border-2', 'border-taijiang-water', 'bg-sky-50', 'font-bold', 'text-taijiang-deepWater');
+        satBtn.classList.add('border', 'border-stone-300', 'bg-white', 'font-medium', 'text-stone-700');
+        quickSatBtn.textContent = '切換衛星圖';
+      }
+    }
+
+    document.getElementById('baseOsmBtn').addEventListener('click', () => setBaseMap('osm'));
+    document.getElementById('baseSatBtn').addEventListener('click', () => setBaseMap('sat'));
+    document.getElementById('quickSatBtn').addEventListener('click', () => {
+      setBaseMap(currentBase === 'osm' ? 'sat' : 'osm');
+    });
+
+    // 圖層開關同步（側邊欄 + 右上角浮動面板）
+    function syncLayerToggle(layerGroup, checked, cb1, cb2) {
+      cb1.checked = checked;
+      cb2.checked = checked;
+      if (checked) {
+        layerGroup.addTo(map);
+      } else {
+        map.removeLayer(layerGroup);
+      }
+    }
+
+    const tAncient = document.getElementById('toggleAncientLayer');
+    const qAncient = document.getElementById('quickAncient');
+    tAncient.addEventListener('change', e => syncLayerToggle(ancientLayerGroup, e.target.checked, tAncient, qAncient));
+    qAncient.addEventListener('change', e => syncLayerToggle(ancientLayerGroup, e.target.checked, tAncient, qAncient));
+
+    const tModern = document.getElementById('toggleModernLayer');
+    const qModern = document.getElementById('quickModern');
+    tModern.addEventListener('change', e => syncLayerToggle(modernLayerGroup, e.target.checked, tModern, qModern));
+    qModern.addEventListener('change', e => syncLayerToggle(modernLayerGroup, e.target.checked, tModern, qModern));
+
+    const tWalk = document.getElementById('toggleWalkLayer');
+    const qWalk = document.getElementById('quickWalk');
+    tWalk.addEventListener('change', e => syncLayerToggle(walkingLayerGroup, e.target.checked, tWalk, qWalk));
+    qWalk.addEventListener('change', e => syncLayerToggle(walkingLayerGroup, e.target.checked, tWalk, qWalk));
+
+    // 手機版側邊欄開關
+    document.getElementById('mobileSidebarToggle').addEventListener('click', () => {
+      document.getElementById('sidebar').classList.toggle('-translate-x-full');
+    });
+
+    // ==========================================
+    // 9. 初始渲染
+    // ==========================================
+    renderEraCard('all');
+    renderNodesList();
+  </script>
+</body>
+</html>
